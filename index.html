@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Craft & Co — Simple CSS E-Store (No JS)</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Playfair+Display:wght@600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg: #fbfbfe;
+    --card: #ffffff;
+    --muted:#777;
+    --accent:#2b7a78;
+    --accent-2:#ff6f61;
+    --max:1100px;
+    --shadow: 0 10px 30px rgba(18,22,30,0.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(180deg,#fbfbfe,#eef7f6);color:#111}
+  a{color:inherit}
+
+  /* Page frame */
+  .wrap{max-width:var(--max);margin:32px auto;padding:20px}
+
+  header{
+    display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:18px;
+  }
+  .brand{display:flex;gap:12px;align-items:center}
+  .logo{width:60px;height:60px;border-radius:12px;background:linear-gradient(135deg,var(--accent),#185a59);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Playfair Display';font-weight:700}
+  .title{font-family:'Playfair Display';font-size:20px}
+  .tag{color:var(--muted);font-size:13px}
+
+  /* Layout: products + right cart */
+  .layout{display:grid;grid-template-columns:1fr 360px;gap:22px;align-items:start}
+  @media (max-width:980px){ .layout{grid-template-columns:1fr} }
+
+  /* Form wraps everything so checked boxes submit with the checkout form */
+  form.store-form{display:contents}
+
+  /* Hidden product checkboxes (must appear before cart in DOM so cart can use ~ selectors) */
+  .product-toggle{display:none}
+
+  /* Products grid */
+  .products{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+  .card{background:var(--card);border-radius:12px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}
+  .thumb{height:180px;overflow:hidden}
+  .thumb img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+  .card:hover .thumb img{transform:scale(1.06)}
+  .card-body{padding:12px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .price{font-weight:700;color:var(--accent-2)}
+  .meta{font-size:13px;color:var(--muted)}
+
+  /* "Add to cart" label styled as a button - it toggles the checkbox with 'for' */
+  .add-btn{
+    display:inline-block;padding:10px 12px;border-radius:10px;background:linear-gradient(90deg,var(--accent),#1f5f5a);color:#fff;font-weight:700;text-decoration:none;cursor:pointer
+  }
+
+  /* Product detail modals (using :target) */
+  .product-modal{
+    position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;visibility:hidden;opacity:0;
+    background:rgba(2,6,23,0.6);transition:opacity .25s, visibility .25s;
+  }
+  .product-modal:target{visibility:visible;opacity:1}
+  .modal-card{width:100%;max-width:900px;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:0 30px 80px rgba(2,6,23,0.5);display:grid;grid-template-columns:1fr 1fr}
+  .modal-thumb img{width:100%;height:100%;object-fit:cover}
+  .modal-body{padding:20px}
+  .close-modal{display:inline-block;padding:8px 10px;border-radius:8px;background:#eee;color:#333;margin-top:12px;text-decoration:none}
+
+  /* Cart (right column) */
+  aside.cart{background:var(--card);padding:18px;border-radius:12px;box-shadow:var(--shadow);position:sticky;top:20px;height:fit-content}
+  aside.cart h3{margin:0 0 12px}
+  .cart-list{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+  .cart-item{display:flex;gap:10px;align-items:center;border-radius:10px;padding:8px;background:linear-gradient(180deg,#fff,#fbfbfb);border:1px solid rgba(0,0,0,0.03)}
+  .cart-item img{width:64px;height:48px;object-fit:cover;border-radius:8px}
+  .cart-item .cmeta{flex:1}
+  .cart-item .cmeta .cname{font-weight:700}
+  .cart-item .cmeta .cprice{color:var(--accent-2);font-weight:700}
+
+  /* If none selected show message */
+  .empty{color:var(--muted);font-size:14px;padding:12px;border-radius:8px;background:linear-gradient(180deg,#fff,#fafafa);border:1px dashed rgba(0,0,0,0.04)}
+
+  /* CSS to show cart items only when their corresponding checkbox is checked.
+     Input elements must be before this aside in DOM so we can use the general sibling (~) selector.
+     Each input has id pX and name items[] value "label | $price" so it will be submitted in the checkout form.
+  */
+  /* Hide all cart entries by default */
+  .cart .cart-item{display:none}
+
+  /* Show cart line when corresponding checkbox is checked */
+  /* Example: #p1:checked ~ .layout aside.cart .item-p1 { display:flex } */
+  /* We'll define for 6 items below */
+  #p1:checked ~ .layout aside.cart .item-p1,
+  #p2:checked ~ .layout aside.cart .item-p2,
+  #p3:checked ~ .layout aside.cart .item-p3,
+  #p4:checked ~ .layout aside.cart .item-p4,
+  #p5:checked ~ .layout aside.cart .item-p5,
+  #p6:checked ~ .layout aside.cart .item-p6 {
+    display:flex;
+  }
+
+  /* Quick cart summary */
+  .cart-summary{border-top:1px solid rgba(0,0,0,0.04);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:8px}
+  .total{font-weight:800;font-size:18px}
+
+  /* Checkout form fields */
+  .checkout-row{display:flex;gap:8px}
+  .checkout-row input,.checkout-row textarea,.checkout-row select{
+    width:100%;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)
+  }
+  .checkout-btn{display:inline-block;padding:12px 16px;border-radius:999px;background:linear-gradient(90deg,var(--accent),#185a59);color:#fff;font-weight:700;text-decoration:none;border:none;cursor:pointer}
+
+  /* Small helpers */
+  .muted{color:var(--muted);font-size:13px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (max-width:980px){
+    .modal-card{grid-template-columns:1fr}
+    .layout{grid-template-columns:1fr}
+    aside.cart{position:relative}
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="logo">C&amp;Co</div>
+      <div>
+        <div class="title">Craft & Co</div>
+        <div class="tag">Handmade goods • Beginner friendly store</div>
+      </div>
+    </div>
+
+    <div class="muted">No JS — demo store (checkout uses your email client)</div>
+  </header>
+
+  <!--
+    The FORM wraps the page inputs so that checked product checkboxes are included when customer submits checkout.
+    Action uses mailto: to open the user's email client with order details.
+  -->
+  <form class="store-form" action="mailto:orders@example.com" method="post" enctype="text/plain">
+
+    <!-- 1) Hidden product checkboxes (must be before .layout so CSS can show cart entries using ~) -->
+    <!-- Each input must have a unique id so its label can toggle it, and a name "items[]" so all checked items submit. -->
+    <input class="product-toggle" id="p1" type="checkbox" name="items[]" value="Handwoven Scarf | $29.00">
+    <input class="product-toggle" id="p2" type="checkbox" name="items[]" value="Ceramic Mug Set | $45.00">
+    <input class="product-toggle" id="p3" type="checkbox" name="items[]" value="Leather Journal | $34.00">
+    <input class="product-toggle" id="p4" type="checkbox" name="items[]" value="Eco Tote Bag | $22.00">
+    <input class="product-toggle" id="p5" type="checkbox" name="items[]" value="Minimalist Lamp | $120.00">
+    <input class="product-toggle" id="p6" type="checkbox" name="items[]" value="Art Print — Cityscape | $55.00">
+
+    <!-- MAIN LAYOUT -->
+    <div class="layout">
+
+      <!-- PRODUCTS GRID -->
+      <section class="products">
+        <!-- Product 1 -->
+        <article class="card">
+          <div class="thumb">
+            <!-- Clicking image opens product detail modal (anchor to #product-1) -->
+            <a href="#product-1"><img src="https://images.unsplash.com/photo-1526178612297-4f8f44d6e2a1?q=80&w=1400&auto=format&fit=crop" alt="Handwoven Scarf"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Handmade • Textiles</div>
+            <h3>Handwoven Scarf</h3>
+            <div class="price">$29.00</div>
+
+            <!-- Label toggles #p1 checkbox (add/remove from cart) -->
+            <label class="add-btn" for="p1">Add to cart</label>
+
+            <div class="muted" style="margin-top:8px">Click image to view details</div>
+          </div>
+        </article>
+
+        <!-- Product 2 -->
+        <article class="card">
+          <div class="thumb">
+            <a href="#product-2"><img src="https://images.unsplash.com/photo-1520975698510-61f693e6a08b?q=80&w=1400&auto=format&fit=crop" alt="Ceramic Mug Set"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Kitchen • Ceramics</div>
+            <h3>Ceramic Mug Set</h3>
+            <div class="price">$45.00</div>
+            <label class="add-btn" for="p2">Add to cart</label>
+            <div class="muted" style="margin-top:8px">Beautiful glazed finish</div>
+          </div>
+        </article>
+
+        <!-- Product 3 -->
+        <article class="card">
+          <div class="thumb">
+            <a href="#product-3"><img src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1400&auto=format&fit=crop" alt="Leather Journal"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Stationery • Leather</div>
+            <h3>Leather Journal</h3>
+            <div class="price">$34.00</div>
+            <label class="add-btn" for="p3">Add to cart</label>
+            <div class="muted" style="margin-top:8px">Refillable pages</div>
+          </div>
+        </article>
+
+        <!-- Product 4 -->
+        <article class="card">
+          <div class="thumb">
+            <a href="#product-4"><img src="https://images.unsplash.com/photo-1545239351-1141bd82e8a6?q=80&w=1400&auto=format&fit=crop" alt="Eco Tote Bag"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Accessories • Eco</div>
+            <h3>Eco Tote Bag</h3>
+            <div class="price">$22.00</div>
+            <label class="add-btn" for="p4">Add to cart</label>
+            <div class="muted" style="margin-top:8px">Durable organic cotton</div>
+          </div>
+        </article>
+
+        <!-- Product 5 -->
+        <article class="card">
+          <div class="thumb">
+            <a href="#product-5"><img src="https://images.unsplash.com/photo-1519710164239-da123dc03ef4?q=80&w=1400&auto=format&fit=crop" alt="Minimalist Lamp"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Home • Lighting</div>
+            <h3>Minimalist Lamp</h3>
+            <div class="price">$120.00</div>
+            <label class="add-btn" for="p5">Add to cart</label>
+            <div class="muted" style="margin-top:8px">Warm LED, dimmable</div>
+          </div>
+        </article>
+
+        <!-- Product 6 -->
+        <article class="card">
+          <div class="thumb">
+            <a href="#product-6"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1400&auto=format&fit=crop" alt="Art Print"></a>
+          </div>
+          <div class="card-body">
+            <div class="meta">Art • Prints</div>
+            <h3>Art Print — Cityscape</h3>
+            <div class="price">$55.00</div>
+            <label class="add-btn" for="p6">Add to cart</label>
+            <div class="muted" style="margin-top:8px">A2 print on archival paper</div>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- CART (right column) -->
+      <aside class="cart">
+        <h3>Your Cart</h3>
+
+        <!-- If no checkbox is selected, user sees empty message. We cannot detect "none checked" with CSS easily, so show both.
+             The empty message is always visible unless we hide it by showing at least one item. We'll hide it when any pX is checked. -->
+        <div class="empty">No items selected. Click <strong>Add to cart</strong> to add products.</div>
+
+        <div class="cart-list">
+          <!-- Each cart item appears when its checkbox is checked (see CSS above) -->
+          <div class="cart-item item-p1">
+            <img src="https://images.unsplash.com/photo-1526178612297-4f8f44d6e2a1?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta">
+              <div class="cname">Handwoven Scarf</div>
+              <div class="muted">Qty: 1</div>
+            </div>
+            <div class="cprice">$29.00</div>
+          </div>
+
+          <div class="cart-item item-p2">
+            <img src="https://images.unsplash.com/photo-1520975698510-61f693e6a08b?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta"><div class="cname">Ceramic Mug Set</div><div class="muted">Qty: 1</div></div>
+            <div class="cprice">$45.00</div>
+          </div>
+
+          <div class="cart-item item-p3">
+            <img src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta"><div class="cname">Leather Journal</div><div class="muted">Qty: 1</div></div>
+            <div class="cprice">$34.00</div>
+          </div>
+
+          <div class="cart-item item-p4">
+            <img src="https://images.unsplash.com/photo-1545239351-1141bd82e8a6?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta"><div class="cname">Eco Tote Bag</div><div class="muted">Qty: 1</div></div>
+            <div class="cprice">$22.00</div>
+          </div>
+
+          <div class="cart-item item-p5">
+            <img src="https://images.unsplash.com/photo-1519710164239-da123dc03ef4?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta"><div class="cname">Minimalist Lamp</div><div class="muted">Qty: 1</div></div>
+            <div class="cprice">$120.00</div>
+          </div>
+
+          <div class="cart-item item-p6">
+            <img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=400&auto=format&fit=crop" alt="">
+            <div class="cmeta"><div class="cname">Art Print — Cityscape</div><div class="muted">Qty: 1</div></div>
+            <div class="cprice">$55.00</div>
+          </div>
+        </div>
+
+        <!-- Hide the empty message when any product checkbox is checked -->
+        <style>
+          /* When any checkbox is checked, hide the .empty message.
+             This combines p1..p6 using :checked ~ selector to target .empty sibling.
+          */
+          #p1:checked ~ .layout aside.cart .empty,
+          #p2:checked ~ .layout aside.cart .empty,
+          #p3:checked ~ .layout aside.cart .empty,
+          #p4:checked ~ .layout aside.cart .empty,
+          #p5:checked ~ .layout aside.cart .empty,
+          #p6:checked ~ .layout aside.cart .empty {
+            display:none;
+          }
+        </style>
+
+        <!-- Cart summary (note: totals must be calculated manually; CSS-only cannot sum prices) -->
+        <div class="cart-summary">
+          <div class="muted">Subtotal (calculate manually)</div>
+          <div class="total">Total: —</div>
+
+          <!-- Checkout form fields — these are submitted along with the checked items[] inputs above -->
+          <div style="margin-top:8px">
+            <label class="muted">Full Name</label>
+            <input type="text" name="customer_name" placeholder="Jane Doe" required>
+
+            <label class="muted" style="margin-top:8px">Email</label>
+            <input type="email" name="customer_email" placeholder="you@example.com" required>
+
+            <label class="muted" style="margin-top:8px">Shipping Address</label>
+            <textarea name="shipping_address" rows="3" placeholder="Street, City, ZIP" required style="width:100%;padding:8px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)"></textarea>
+
+            <label class="muted" style="margin-top:8px">Notes (optional)</label>
+            <input type="text" name="notes" placeholder="Gift wrap / preferred delivery times">
+
+            <!-- Checkout button: submitting the form will include checked items[] values + buyer info -->
+            <div style="margin-top:10px">
+              <button type="submit" class="checkout-btn">Checkout — Send Order via Email</button>
+            </div>
+
+            <p class="muted" style="font-size:12px;margin-top:8px">This checkout opens your email client with order details. For real payments and persistent carts, integrate a backend or payment gateway later.</p>
+          </div>
+        </div>
+
+      </aside>
+
+    </div> <!-- end layout -->
+
+  </form> <!-- end store-form -->
+
+  <!-- PRODUCT DETAIL MODALS (targeted by #product-N anchors) -->
+  <!-- Product 1 Modal -->
+  <div id="product-1" class="product-modal" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <div class="modal-thumb"><img src="https://images.unsplash.com/photo-1526178612297-4f8f44d6e2a1?q=80&w=1600&auto=format&fit=crop" alt="Handwoven Scarf"></div>
+      <div class="modal-body">
+        <h2>Handwoven Scarf</h2>
+        <p class="muted">Handmade • Textiles • $29.00</p>
+        <p>Beautiful handwoven scarf made from organic cotton. Lightweight, warm, and available in multiple colors. Size: 70 x 200 cm.</p>
+        <p><strong>How to order:</strong> Click <em>Add to cart</em> on the product card, then complete checkout on the right.</p>
+        <a class="close-modal" href="#" title="Close">Close</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Product 2 Modal -->
+  <div id="product-2" class="product-modal"><div class="modal-card"><div class="modal-thumb"><img src="https://images.unsplash.com/photo-1520975698510-61f693e6a08b?q=80&w=1600&auto=format&fit=crop" alt=""></div><div class="modal-body"><h2>Ceramic Mug Set</h2><p class="muted">$45.00 • Glazed ceramics</p><p>Set of two hand-thrown mugs with dishwasher-safe glaze. Perfect for morning coffee.</p><a class="close-modal" href="#">Close</a></div></div></div>
+
+  <!-- Product 3 Modal -->
+  <div id="product-3" class="product-modal"><div class="modal-card"><div class="modal-thumb"><img src="https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1600&auto=format&fit=crop" alt=""></div><div class="modal-body"><h2>Leather Journal</h2><p class="muted">$34.00 • Refillable</p><p>Hand-stitched leather cover with 200 cream pages. Ideal for journaling and sketching.</p><a class="close-modal" href="#">Close</a></div></div></div>
+
+  <!-- Product 4 Modal -->
+  <div id="product-4" class="product-modal"><div class="modal-card"><div class="modal-thumb"><img src="https://images.unsplash.com/photo-1545239351-1141bd82e8a6?q=80&w=1600&auto=format&fit=crop" alt=""></div><div class="modal-body"><h2>Eco Tote Bag</h2><p class="muted">$22.00 • Organic cotton</p><p>Strong organic cotton tote for shopping and everyday use. Foldable and washable.</p><a class="close-modal" href="#">Close</a></div></div></div>
+
+  <!-- Product 5 Modal -->
+  <div id="product-5" class="product-modal"><div class="modal-card"><div class="modal-thumb"><img src="https://images.unsplash.com/photo-1519710164239-da123dc03ef4?q=80&w=1600&auto=format&fit=crop" alt=""></div><div class="modal-body"><h2>Minimalist Lamp</h2><p class="muted">$120.00 • Warm LED</p><p>Clean-lined tabletop lamp with dimmable warm LED. Perfect accent for bedside or desk.</p><a class="close-modal" href="#">Close</a></div></div></div>
+
+  <!-- Product 6 Modal -->
+  <div id="product-6" class="product-modal"><div class="modal-card"><div class="modal-thumb"><img src="https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=1600&auto=format&fit=crop" alt=""></div><div class="modal-body"><h2>Art Print — Cityscape</h2><p class="muted">$55.00 • A2 print</p><p>High-quality archival print of a cityscape. Signed by the artist. Shipped rolled in a tube.</p><a class="close-modal" href="#">Close</a></div></div></div>
+
+  <footer style="margin-top:28px;text-align:center;color:var(--muted);font-size:14px">
+    <p>&copy; 2025 Craft & Co — Demo store (no JS)</p>
+  </footer>
+
+</div> <!-- wrap end -->
+
+</body>
+</html>
